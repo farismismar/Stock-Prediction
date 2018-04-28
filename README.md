@@ -14,6 +14,7 @@ Stochastic Momentum Indicator
 Chande Momentum Oscillator
 Commodity Channel Index
 Chaikin's Volatility Indicator
+Chaikin's Oscillator
 Rate of Price Change
 Rate of Volume Change
 William Oscillator
