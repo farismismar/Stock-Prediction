@@ -1,6 +1,6 @@
 # stockprediction
 
-This file contains various financial technical indicators functions for stock price analysis.
+This file uses LSTM and various financial technical indicators functions to predict stock price.
 
 ```
 Simple Moving Average
@@ -20,3 +20,4 @@ Rate of Volume Change
 William Oscillator
 ```
 
+LSTM is implemented using Keras with TensorFlow in the backend. 
