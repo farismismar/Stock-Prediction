@@ -3,21 +3,32 @@
 Created on Thu April 26 09:22:31 2018
 @author: Faris Mismar
 """
-from keras.models import Sequential
-from keras.layers import Dense
+import keras
 
-import tensorflow
+from keras.models import Sequential
+from keras.layers import Dense, Activation
+from keras.layers import LSTM
+from keras.layers import Dropout
+
 import pandas as pd
-from sklearn.model_selection import train_test_split
 import numpy as np
+
+from sklearn.preprocessing import MinMaxScaler
+
 from pandas.stats import moments
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 import os
+import sys
 #os.chdir('C:/Users/ATOC Resource 3/Desktop/Jio/Hackathon')
 os.chdir('/Users/farismismar/Dropbox/Stock Trading Using ML')
 
-##### TO DO:
+# Check if tensorflow is used
+if (keras.backend.backend() != 'tensorflow' and keras.backend.image_data_format() != 'channels_last' and keras.backend.image_dim_ordering() != 'tf'):
+    print('Install tensorflow, configure keras.json to include channels_last for image format and tf for image dimension ordering.')
+    print('Program will now exit.')
+    sys.exit(1)
+    
 # Set the random seed
 seed = 123
 np.random.seed(seed)
@@ -141,8 +152,8 @@ def bollinger_bands(df, n):
     :param n: 
     :return: pandas.DataFrame
     """
-    MA = pd.Series(df['Close'].rolling(n, min_periods=n).mean())
-    MSD = pd.Series(df['Close'].rolling(n, min_periods=n).std())
+    MA = pd.Series(df['Close'].rolling(window=n, min_periods=n).mean())
+    MSD = pd.Series(df['Close'].rolling(window=n, min_periods=n).std())
     b1 = 4 * MSD / MA
     B1 = pd.Series(b1, name='BollingerB_' + str(n))
     df = df.join(B1)
@@ -243,7 +254,7 @@ def commodity_channel_index(df, n):
     :return: pandas.DataFrame
     """
     PP = (df['High'] + df['Low'] + df['Close']) / 3
-    CCI = pd.Series((PP - PP.rolling(n, min_periods=n).mean()) / PP.rolling(n, min_periods=n).std(), name='CCI_' + str(n))
+    CCI = pd.Series((PP - PP.rolling(window=n, min_periods=n).mean()) / PP.rolling(window=n, min_periods=n).std(), name='CCI_' + str(n))
     df = df.join(CCI)
     return df
 	
@@ -251,23 +262,64 @@ for i in np.array([30,40,50]):
     dataset = commodity_channel_index(dataset, i)
 
 # Ask 11:
-# Chakin Volatility indicator (30, 40, 50 Days)
-# Still needs revision...
-# https://www.quantopian.com/posts/technical-analysis-indicators-without-talib-code
-def Chaikin(df, n):
+# Reference: https://www.quantopian.com/posts/technical-analysis-indicators-without-talib-code
+# Proof of magnitude is: http://stockcharts.com/school/doku.php?id=chart_school:technical_indicators:chaikin_oscillator
+def Chaikin_osc(df):  
     ad = (2 * df['Close'] - df['High'] - df['Low']) / (df['High'] - df['Low']) * df['Volume']  
-    Chaikin = pd.Series(pd.ewma(ad, span = 3, min_periods = 2) - pd.ewma(ad, span = 10, min_periods = 9), name = 'Chaikin_' + str(n))  
-    df = df.join(Chaikin)  
+    Chaikin = pd.Series(pd.ewma(ad, span = 3, min_periods = 3) - pd.ewma(ad, span = 10, min_periods = 10), name = 'Chaikin_osc(3,10)')
+    df = df.join(Chaikin)
+
     return df
-	
+
+dataset = Chaikin_osc(dataset)
+
+# Chakin Volatility indicator (30, 40, 50 Days)
+# Reference: https://www.linnsoft.com/techind/chaikin-money-flow-cmf
+def Chaikin(df,n):
+    AD = df['Volume']* (df['Close'] - df['Open']) / (df['High'] - df['Low']) # AD = VOL * (CL - OP) / (HI - LO) #AD stands for Accumulation Distribution
+    CMF = pd.Series(AD.rolling(window=n, min_periods=n).sum()) / pd.Series(df['Volume'].rolling(window=n, min_periods=n).sum()) #    CMF = SUM(AD, n) / SUM(VOL, n) where n = Period
+    Chaikin = pd.Series(CMF, name='Chaikin_'+str(n))
+    Chaikin_dir = pd.Series(Chaikin > 0, name='Chaikin_dir_'+str(n)) + 0
+    df = df.join(Chaikin)
+    df = df.join(Chaikin_dir)
+    
+    return df
+
 for i in np.array([30,40,50]):
     dataset = Chaikin(dataset, i)
-
+    
 # Ask 12:
 # Trend Detection Index (30, 40, 50 Days)
-# TODO: Hard to find!!
+# https://www.linnsoft.com/techind/trend-detection-index-tdi
 
+def trend_detection_index(df, n):     
+    '''
+    Mom = Price - Price[Period] 
+    MomAbs = Abs(Mom) 
+    MomSum = Sum(Mom, Period) 
+    MomSumAbs = Abs(MomSum) 
+    MomAbsSum = Sum(MomAbs, Period) 
+    MomAbsSum2 = Sum(MomAbs, Period * 2) 
+    TDI = MomSumAbs - (MomAbsSum2 - MomAbsSum)
+    '''
+    
+    Mom = [(df['Close'][idx-n] - df['Close'][idx]) for idx in range(n,len(df['Close']))]
+    MomAbs = pd.Series(Mom).abs()
+    MomSum = pd.Series(Mom).rolling(window=n, min_periods=n).sum()
+    MomSumAbs = MomSum.abs()
 
+    MomAbsSum = pd.Series(MomAbs).rolling(window=n, min_periods=n).sum()
+    MomAbsSum2 = pd.Series(MomAbs).rolling(window=2*n, min_periods=2*n).sum()
+    
+    TDI = pd.Series(MomSumAbs - (MomAbsSum2 - MomAbsSum), name='TDI_'+str(n))
+    
+    df = df.join(TDI)
+    
+    return df
+
+for i in np.array([30,40,50]):
+    dataset = trend_detection_index(dataset, i)
+    
 # Ask 13:
 # Rate of Price Change (30, 40, 50 Days)
 def rate_of_price_change(df, n):
@@ -297,7 +349,7 @@ def rate_of_volume_change(df, n):
     """
     M = df['Volume'].diff(n - 1)
     N = df['Volume'].shift(n - 1)
-    ROC = pd.Series(M / N, name='ROVC_' + str(n))
+    ROC = pd.Series(M / (0.00001 + N), name='ROVC_' + str(n))
     df = df.join(ROC)
     return df
 	
@@ -328,30 +380,120 @@ for i in np.array([30,40,50]):
 # Save the file
 dataset.to_csv(path_or_buf='./Dataset/{}_complete.csv'.format(TICKER), index=False)
 
+# Plot the data closing
+plt.figure(figsize=(15,3))
+plt.rc('text', usetex=True)
+plt.rc('font', family='serif')
+plt.plot(np.log10(dataset['Close'].values))
+plt.title('$\ln$ Closing Price')
+plt.grid()
+plt.show()
+
 ############################################################################################
-# Perform a split 30-70
+
+# Keep a copy of the original file in case
+dataframe = dataset
+dataset = dataset.drop(['Date'], axis=1)
+
+# Perform a split 70-30
 m, n = dataset.shape
+rsplit = 0.7
 
-rsplit = 0.3
-index = int(rsplit * m)
+# split into train and test sets
+train_size = int(rsplit * m)
+test_size = m - train_size
 
-train = dataset.iloc[0:index,:]
-test = dataset.iloc[index+1:,:].reset_index()
+# Introduce ln to the closing price to make it look stationary
+#dataset['Close'] = np.log(dataset['Close'])
+
+# Replace all NaNs with -12345
+dataset.fillna(value=-12345,inplace=True)
+
+train, test = dataset.iloc[0:train_size,:], dataset.iloc[train_size:m,:]
 
 X_train = train.drop(['Close'], axis = 1)
 X_test = test.drop(['Close'], axis = 1)
-
 y_train = train['Close']
 y_test = test['Close']
 
+# normalize the dataset
+scaler = MinMaxScaler(feature_range=(0, 1))
+X_train_sc = scaler.fit_transform(X_train)
+X_test_sc = scaler.transform(X_test)
+
+X_train_sc = X_train_sc.astype('float32')
+############################################################################################
+
+# Generate LSTM
+# Check this:
+# https://machinelearningmastery.com/time-series-prediction-lstm-recurrent-neural-networks-python-keras/ (BS)
+# https://towardsdatascience.com/time-series-analysis-in-python-an-introduction-70d5a5b1d52a
+# https://towardsdatascience.com/using-lstms-to-forecast-time-series-4ab688386b1f
+
+# Generate lag data
+# https://machinelearningmastery.com/tune-lstm-hyperparameters-keras-time-series-forecasting/
+
+def difference(df, lag=1):
+	columns = [df.shift(i) for i in np.arange(1, lag+1)]
+	columns.append(df)
+	df = pd.concat(columns, axis=1)
+	return df
+
+def rmse(y_true, y_pred):
+	return keras.backend.sqrt(keras.backend.mean(keras.backend.square(y_pred - y_true), axis=-1))
+ 
+
 mX, nX = X_train.shape
-mY = y_train.shape
+mY, = y_train.shape
+time_steps = 1
+batch_size = 2
+
+# reshape input to be [samples, time steps, features]
+X_train_sc = np.reshape(X_train_sc, (mX, time_steps, nX))
+X_test_sc = np.reshape(X_test_sc, (X_test_sc.shape[0], time_steps, nX))
+
+# reshape output too to be one feature.
+y_train = np.reshape(y_train, (mY, 1))
+y_test = np.reshape(y_test, (-1, 1))
+
+# Build LSTM
+'''
+model = Sequential()
+model.add(LSTM(input_shape=(time_steps, nX), units=nX, activation='relu', return_sequences=True, stateful=True, batch_input_shape=(batch_size, time_steps, nX)))
+#model.add(LSTM(batch_size, return_sequences=True, stateful=True))
+model.add(LSTM(batch_size, stateful=True))
+#model.add(Dropout(0.2))
+#model.add(Dense(10, activation='relu'))
+model.add(Dense(1)) # no matter what, do not change this.  This is since y is a vector. 
+model.add(Activation('linear'))
+model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mse', 'mae', 'mape'])
+'''
+model = Sequential()
+model.add(LSTM(input_shape=(time_steps, nX), units=nX, activation='relu'))
+model.add(Dropout(0.2))
+model.add(Dense(1)) # no matter what, do not change this.  This is since y is a vector. 
+model.add(Activation('linear'))
+model.compile(loss='mean_squared_error', optimizer='adam', metrics=[rmse])
+model.summary()
+
+model.fit(X_train_sc, y_train, epochs=256, batch_size=batch_size, verbose=2)
 
 # Generate a timeseries from 2018-04-04 to 2018-04-04 + 30 days = 2018-05-04
 # Use data from Yahoo finance to predict these stocks 
+y_hat = model.predict(X_test_sc, batch_size=batch_size)
 
-# Check this:
-# https://towardsdatascience.com/time-series-analysis-in-python-an-introduction-70d5a5b1d52a
+plt.figure(figsize=(15,3))
+plt.rc('text', usetex=True)
+plt.rc('font', family='serif')
+plot_test, = plt.plot(y_test, label='Test data')
+plot_predicted, = plt.plot(y_hat, label='Predicted data')
+plt.legend([plot_test, plot_predicted])
+plt.grid(True)
+plt.xlim([0,y_hat.shape[0]])
+plt.ylabel('Price in USD')
+plt.xlabel('Date')
+plt.title('Predicted Closing Price')
+plt.show()
 
 ############################################################################################    
 # This is the function that generates the requirement
