@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 
 import os
 import sys
-#os.chdir('C:/Users/ATOC Resource 3/Desktop/Jio/Hackathon')
+
 os.chdir('/Users/farismismar/Dropbox/Stock Trading Using ML')
 
 # Check if tensorflow is used
@@ -241,8 +241,6 @@ def chande_momentum_oscillator(df, n):
     df = df.join(cmo)
     return df
 
-
-
 # Ask 10:
 # Commodity Channel Index (30, 40, 50 Days)
 
@@ -380,15 +378,6 @@ for i in np.array([30,40,50]):
 # Save the file
 dataset.to_csv(path_or_buf='./Dataset/{}_complete.csv'.format(TICKER), index=False)
 
-# Plot the data closing
-plt.figure(figsize=(15,3))
-plt.rc('text', usetex=True)
-plt.rc('font', family='serif')
-plt.plot(np.log10(dataset['Close'].values))
-plt.title('$\ln$ Closing Price')
-plt.grid()
-plt.show()
-
 ############################################################################################
 
 # Keep a copy of the original file in case
@@ -397,14 +386,23 @@ dataset = dataset.drop(['Date'], axis=1)
 
 # Perform a split 70-30
 m, n = dataset.shape
-rsplit = 0.7
+rsplit = 0.8
 
 # split into train and test sets
 train_size = int(rsplit * m)
 test_size = m - train_size
 
-# Introduce ln to the closing price to make it look stationary
-#dataset['Close'] = np.log(dataset['Close'])
+# Make data look more stationary
+dataset['Close'] = np.sqrt(dataset['Close'])
+
+# Plot the data closing
+plt.figure(figsize=(15,3))
+plt.rc('text', usetex=True)
+plt.rc('font', family='serif')
+plt.plot(dataset['Close'].values)
+plt.title('Transformed Closing Price')
+plt.grid()
+plt.show()
 
 # Replace all NaNs with -12345
 dataset.fillna(value=-12345,inplace=True)
@@ -441,7 +439,6 @@ def difference(df, lag=1):
 
 def rmse(y_true, y_pred):
 	return keras.backend.sqrt(keras.backend.mean(keras.backend.square(y_pred - y_true), axis=-1))
- 
 
 mX, nX = X_train.shape
 mY, = y_train.shape
@@ -472,11 +469,11 @@ model = Sequential()
 model.add(LSTM(input_shape=(time_steps, nX), units=nX, activation='relu'))
 model.add(Dropout(0.2))
 model.add(Dense(1)) # no matter what, do not change this.  This is since y is a vector. 
-model.add(Activation('linear'))
-model.compile(loss='mean_squared_error', optimizer='adam', metrics=[rmse])
+model.add(Activation('relu'))
+model.compile(loss='mae', optimizer='adam', metrics=[rmse])
 model.summary()
 
-model.fit(X_train_sc, y_train, epochs=256, batch_size=batch_size, verbose=2)
+model.fit(X_train_sc, y_train, epochs=2048, batch_size=batch_size, verbose=2)
 
 # Generate a timeseries from 2018-04-04 to 2018-04-04 + 30 days = 2018-05-04
 # Use data from Yahoo finance to predict these stocks 
@@ -485,14 +482,15 @@ y_hat = model.predict(X_test_sc, batch_size=batch_size)
 plt.figure(figsize=(15,3))
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
-plot_test, = plt.plot(y_test, label='Test data')
-plot_predicted, = plt.plot(y_hat, label='Predicted data')
+plot_test, = plt.plot(y_test ** 2, label='Test data')
+plot_predicted, = plt.plot(y_hat ** 2, label='Predicted data')
 plt.legend([plot_test, plot_predicted])
 plt.grid(True)
 plt.xlim([0,y_hat.shape[0]])
 plt.ylabel('Price in USD')
 plt.xlabel('Date')
 plt.title('Predicted Closing Price')
+plt.savefig('prediction.pdf', format='pdf')
 plt.show()
 
 ############################################################################################    
