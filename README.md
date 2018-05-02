@@ -1,4 +1,4 @@
-# stockprediction
+# Stock Prediction
 
 This file uses LSTM and various financial technical indicators functions to predict stock price.
 
