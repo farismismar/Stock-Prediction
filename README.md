@@ -1,6 +1,6 @@
 # Stock Prediction
 
-This file uses LSTM and various financial technical indicators functions to predict stock price.
+This file uses deep LSTM and various financial technical indicators functions to predict stock price.
 
 ```
 Simple Moving Average
