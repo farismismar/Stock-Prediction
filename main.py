@@ -35,7 +35,7 @@ seed = 123
 np.random.seed(seed)
 
 # Import the datafile to memory first
-TICKER = 'HCLTECH.NS'
+TICKER = 'WIPRO.NS'
 
 dataset = pd.read_csv('./Dataset/{}.csv'.format(TICKER))
 
@@ -399,8 +399,9 @@ dataframe = dataset
 dataset = dataset.drop(['Date'], axis=1)
 
 # Generate a few differences
-for i in np.arange(10):
-    dataset = difference(dataset, i)
+# Actually made predictions worse!
+# for i in np.arange(10):
+#    dataset = difference(dataset, i)
     
 # Perform a split 70-30
 m, n = dataset.shape
@@ -422,8 +423,8 @@ plt.title('Transformed Closing Price')
 plt.grid()
 plt.show()
 
-# Replace all NaNs with -12345
-dataset.fillna(value=-12345,inplace=True)
+# Replace all NaNs with -1
+dataset.fillna(value=-200,inplace=True)
 
 train, test = dataset.iloc[0:train_size,:], dataset.iloc[train_size:m,:]
 
