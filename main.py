@@ -35,7 +35,7 @@ seed = 123
 np.random.seed(seed)
 
 # Import the datafile to memory first
-TICKER = 'AXISBANK.NS'
+TICKER = 'HCLTECH.NS'
 
 dataset = pd.read_csv('./Dataset/{}.csv'.format(TICKER))
 
@@ -374,6 +374,19 @@ def william_r(df, n):
 
 for i in np.array([30,40,50]):
     dataset = william_r(dataset, i)
+    
+# Generate lag data
+# https://machinelearningmastery.com/tune-lstm-hyperparameters-keras-time-series-forecasting/
+
+def difference(df, lag=1):
+    lag_column = df['Close'].shift(i).rename('Close_lag_'+str(lag))
+    diff_column = df['Close'].diff(i).rename('Close_diff_'+str(lag))
+
+#	lag_column.append(df)
+    df = df.join(lag_column)
+    df = df.join(diff_column)
+    return df
+
 
 ############################################################################################
 # Save the file
@@ -385,6 +398,10 @@ dataset.to_csv(path_or_buf='./Dataset/{}_complete.csv'.format(TICKER), index=Fal
 dataframe = dataset
 dataset = dataset.drop(['Date'], axis=1)
 
+# Generate a few differences
+for i in np.arange(10):
+    dataset = difference(dataset, i)
+    
 # Perform a split 70-30
 m, n = dataset.shape
 rsplit = 0.8
@@ -428,15 +445,6 @@ X_train_sc = X_train_sc.astype('float32')
 # https://machinelearningmastery.com/time-series-prediction-lstm-recurrent-neural-networks-python-keras/ (BS)
 # https://towardsdatascience.com/time-series-analysis-in-python-an-introduction-70d5a5b1d52a
 # https://towardsdatascience.com/using-lstms-to-forecast-time-series-4ab688386b1f
-
-# Generate lag data
-# https://machinelearningmastery.com/tune-lstm-hyperparameters-keras-time-series-forecasting/
-
-def difference(df, lag=1):
-	columns = [df.shift(i) for i in np.arange(1, lag+1)]
-	columns.append(df)
-	df = pd.concat(columns, axis=1)
-	return df
 
 def rmse(y_true, y_pred):
 	return keras.backend.sqrt(keras.backend.mean(keras.backend.square(y_pred - y_true), axis=-1))
