@@ -18,9 +18,10 @@ from sklearn.preprocessing import MinMaxScaler
 from pandas.stats import moments
 import matplotlib.pyplot as plt
 
+import pickle
 import os
 import sys
-
+#os.chdir('C:/Users/ATOC Resource 3/Desktop/Jio/Hackathon')
 os.chdir('/Users/farismismar/Dropbox/Stock Trading Using ML')
 
 # Check if tensorflow is used
@@ -34,7 +35,7 @@ seed = 123
 np.random.seed(seed)
 
 # Import the datafile to memory first
-TICKER = 'AXISBANK.NS'
+TICKER = 'INDUSINDBK.NS'
 
 dataset = pd.read_csv('./Dataset/{}.csv'.format(TICKER))
 
@@ -465,16 +466,26 @@ model.add(Dense(1)) # no matter what, do not change this.  This is since y is a 
 model.add(Activation('linear'))
 model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mse', 'mae', 'mape'])
 '''
-model = Sequential()
-model.add(LSTM(input_shape=(time_steps, nX), units=nX, activation='relu'))
-model.add(Dropout(0.2))
-model.add(Dense(1)) # no matter what, do not change this.  This is since y is a vector. 
-model.add(Activation('relu'))
-model.compile(loss='mae', optimizer='adam', metrics=[rmse])
-model.summary()
 
-model.fit(X_train_sc, y_train, epochs=2048, batch_size=batch_size, verbose=2)
-
+# Check if model exists
+try:
+    filehandler = open('model_{}.pkl'.format(TICKER), 'r')
+    model = pickle.load(filehandler)
+except FileNotFoundError:
+    model = Sequential()
+    model.add(LSTM(input_shape=(time_steps, nX), units=nX, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(1)) # no matter what, do not change this.  This is since y is a vector. 
+    model.add(Activation('relu'))
+    model.compile(loss='mae', optimizer='adam', metrics=[rmse])
+    model.summary()
+    
+    model.fit(X_train_sc, y_train, epochs=2048, batch_size=batch_size, verbose=2)
+    
+    # Save the model in a pickle file
+    filehandler = open('model_{}.pkl'.format(TICKER), 'w')
+    pickle.dump(model, filehandler)
+    
 # Generate a timeseries from 2018-04-04 to 2018-04-04 + 30 days = 2018-05-04
 # Use data from Yahoo finance to predict these stocks 
 y_hat = model.predict(X_test_sc, batch_size=batch_size)
@@ -490,7 +501,7 @@ plt.xlim([0,y_hat.shape[0]])
 plt.ylabel('Price in USD')
 plt.xlabel('Date')
 plt.title('Predicted Closing Price')
-plt.savefig('prediction.pdf', format='pdf')
+plt.savefig('prediction_{}.pdf'.format(TICKER), format='pdf')
 plt.show()
 
 ############################################################################################    
@@ -499,6 +510,14 @@ def generate_return(closing_0, closing_30):
     return (closing_30 - closing_0) / closing_0 * 100.
     
 ############################################################################################
+
+# Conclude
+file = open('return_{}.txt'.format(TICKER),'w') 
+print('For ticker {}, the return is {1:3f}%'.format(TICKER, generate_return(y_hat[0], y_hat[-1])))
+file.write('For ticker {}, the return is {1:3f}%'.format(TICKER, generate_return(y_hat[0], y_hat[-1])))
+file.close()
+
+############################################################################################    
 '''
 from sklearn.model_selection import GridSearchCV
 from keras.wrappers.scikit_learn import KerasRegressor
