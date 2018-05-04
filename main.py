@@ -9,6 +9,7 @@ from keras.models import Sequential
 from keras.layers import Dense, Activation
 from keras.layers import LSTM
 from keras.layers import Dropout
+from keras.models import model_from_json
 
 import pandas as pd
 import numpy as np
@@ -18,7 +19,6 @@ from sklearn.preprocessing import MinMaxScaler
 from pandas.stats import moments
 import matplotlib.pyplot as plt
 
-import pickle
 import os
 import sys
 #os.chdir('C:/Users/ATOC Resource 3/Desktop/Jio/Hackathon')
@@ -35,7 +35,7 @@ seed = 123
 np.random.seed(seed)
 
 # Import the datafile to memory first
-TICKER = 'INDUSINDBK.NS'
+TICKER = 'AXISBANK.NS'
 
 dataset = pd.read_csv('./Dataset/{}.csv'.format(TICKER))
 
@@ -469,8 +469,12 @@ model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mse', 'mae'
 
 # Check if model exists
 try:
-    filehandler = open('model_{}.pkl'.format(TICKER), 'r')
-    model = pickle.load(filehandler)
+    json_file = open('model_{}.json'.format(TICKER), 'r')
+    loaded_model_json = json_file.read()
+    json_file.close()
+    model = model_from_json(loaded_model_json)
+    model.load_weights('model_{}.h5'.format(TICKER))
+
 except FileNotFoundError:
     model = Sequential()
     model.add(LSTM(input_shape=(time_steps, nX), units=nX, activation='relu'))
@@ -482,9 +486,10 @@ except FileNotFoundError:
     
     model.fit(X_train_sc, y_train, epochs=2048, batch_size=batch_size, verbose=2)
     
-    # Save the model in a pickle file
-    filehandler = open('model_{}.pkl'.format(TICKER), 'w')
-    pickle.dump(model, filehandler)
+    model_json = model.to_json()
+    with open('model_{}.json'.format(TICKER), 'w') as json_file:
+        json_file.write(model_json)
+    model.save_weights("model_{}.h5".format(TICKER))
     
 # Generate a timeseries from 2018-04-04 to 2018-04-04 + 30 days = 2018-05-04
 # Use data from Yahoo finance to predict these stocks 
@@ -511,10 +516,12 @@ def generate_return(closing_0, closing_30):
     
 ############################################################################################
 
+generated_return = generate_return(y_hat[0][0], y_hat[-1][0])
+
 # Conclude
 file = open('return_{}.txt'.format(TICKER),'w') 
-print('For ticker {}, the return is {1:3f}%'.format(TICKER, generate_return(y_hat[0], y_hat[-1])))
-file.write('For ticker {}, the return is {1:3f}%'.format(TICKER, generate_return(y_hat[0], y_hat[-1])))
+print('For ticker {0}, the predicted return is {1:3f}%'.format(TICKER, generated_return))
+file.write('For ticker {0}, the predicted return is {1:3f}%'.format(TICKER, generated_return))
 file.close()
 
 ############################################################################################    
