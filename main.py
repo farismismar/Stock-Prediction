@@ -17,6 +17,7 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 
 from pandas.stats import moments
+
 import matplotlib.pyplot as plt
 
 import os
@@ -35,7 +36,7 @@ seed = 123
 np.random.seed(seed)
 
 # Import the datafile to memory first
-TICKER = 'WIPRO.NS'
+TICKER = 'YESBANK.NS'
 
 dataset = pd.read_csv('./Dataset/{}.csv'.format(TICKER))
 
@@ -83,7 +84,6 @@ for i in np.array([30,40,50]):
 # Ask 4:
 # MACD
 # Reference: https://github.com/Crypto-toolbox/pandas-technical-indicators/blob/master/technical_indicators.py
-
 def macd(df, n_fast=26, n_slow=12):
     """Calculate MACD, MACD Signal and MACD difference
     
@@ -145,7 +145,6 @@ dataset = dataset.join(relative_strength_index(dataset))
 # Ask 6:
 # Bollinger Bands ( 30, 40, 50 Days)
 # Reference: https://github.com/Crypto-toolbox/pandas-technical-indicators/blob/master/technical_indicators.py
-
 def bollinger_bands(df, n):
     """
     
@@ -244,7 +243,6 @@ def chande_momentum_oscillator(df, n):
 
 # Ask 10:
 # Commodity Channel Index (30, 40, 50 Days)
-
 def commodity_channel_index(df, n):
     """Calculate Commodity Channel Index for given data.
 
@@ -290,7 +288,6 @@ for i in np.array([30,40,50]):
 # Ask 12:
 # Trend Detection Index (30, 40, 50 Days)
 # https://www.linnsoft.com/techind/trend-detection-index-tdi
-
 def trend_detection_index(df, n):     
     '''
     Mom = Price - Price[Period] 
@@ -375,18 +372,14 @@ def william_r(df, n):
 for i in np.array([30,40,50]):
     dataset = william_r(dataset, i)
     
-# Generate lag data
+# Generate difference and lag data
 # https://machinelearningmastery.com/tune-lstm-hyperparameters-keras-time-series-forecasting/
 
 def difference(df, lag=1):
-    lag_column = df['Close'].shift(i).rename('Close_lag_'+str(lag))
-    diff_column = df['Close'].diff(i).rename('Close_diff_'+str(lag))
+    return df.diff(lag)
 
-#	lag_column.append(df)
-    df = df.join(lag_column)
-    df = df.join(diff_column)
-    return df
-
+def lag(df, l=1):    
+    return df.shift(l)
 
 ############################################################################################
 # Save the file
@@ -395,15 +388,21 @@ dataset.to_csv(path_or_buf='./Dataset/{}_complete.csv'.format(TICKER), index=Fal
 ############################################################################################
 
 # Keep a copy of the original file in case
+# 1231 is 2018-04-04 for whole dataset
 dataframe = dataset
 dataset = dataset.drop(['Date'], axis=1)
 
-# Generate a few differences
-# Actually made predictions worse!
-# for i in np.arange(10):
-#    dataset = difference(dataset, i)
-    
-# Perform a split 70-30
+# Generate time differences/leads as needed.
+# Now more features for time series prediction
+for i in [30]:
+    df = pd.Series(lag(dataset['Close'], -i).values.flatten(), name='Close_t+' + str(i))
+    dataset = dataset.join(df)
+
+for i in [30]:
+    df = pd.Series(difference(dataset['Close'], -i).values.flatten(), name='dClose_t+' + str(i))
+    dataset = dataset.join(df)
+
+# Perform a split
 m, n = dataset.shape
 rsplit = 0.8
 
@@ -411,27 +410,39 @@ rsplit = 0.8
 train_size = int(rsplit * m)
 test_size = m - train_size
 
-# Make data look more stationary
-dataset['Close'] = np.sqrt(dataset['Close'])
-
 # Plot the data closing
-plt.figure(figsize=(15,3))
+fig = plt.figure(figsize=(15,3))
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
 plt.plot(dataset['Close'].values)
-plt.title('Transformed Closing Price')
+plt.title('Closing Price')
 plt.grid()
+fig.tight_layout()
+plt.savefig('price_{}.pdf'.format(TICKER), format='pdf')
 plt.show()
 
-# Replace all NaNs with -1
-dataset.fillna(value=-200,inplace=True)
+# Drop rows with future predictions NaN
+#dataset = dataset[dataset['Close_t+30'].notnull()] <--- kills 04-04-2018 cannot be used.
+
+# Replace all NaNs in predictors with a sentinel
+# With the exception of the Close price, impute by last value
+dataset['Close_t+30'] = dataset['Close_t+30'].fillna(dataset['Close_t+30'].iloc[-30 - 1])
+dataset['dClose_t+30'] = dataset['dClose_t+30'].fillna(dataset['dClose_t+30'].iloc[-30 - 1])
+
+sentinel = -0.123456
+dataset.fillna(value=sentinel, inplace=True)
 
 train, test = dataset.iloc[0:train_size,:], dataset.iloc[train_size:m,:]
 
-X_train = train.drop(['Close'], axis = 1)
-X_test = test.drop(['Close'], axis = 1)
-y_train = train['Close']
-y_test = test['Close']
+# Make data look more stationary
+scaler_y = MinMaxScaler(feature_range=(0,1))
+dataset['Close_t+30'] = scaler_y.fit_transform(dataset['Close_t+30'])
+#dataset['Close_t+30'] = np.sqrt(dataset['Close_t+30'])
+
+X_train = train.drop(['Close_t+30'], axis=1)
+X_test = test.drop(['Close_t+30'], axis=1)
+y_train = train['Close_t+30']
+y_test = test['Close_t+30']
 
 # normalize the dataset
 scaler = MinMaxScaler(feature_range=(0, 1))
@@ -451,9 +462,9 @@ def rmse(y_true, y_pred):
 	return keras.backend.sqrt(keras.backend.mean(keras.backend.square(y_pred - y_true), axis=-1))
 
 mX, nX = X_train.shape
-mY, = y_train.shape
+mY,  = y_train.shape
 time_steps = 1
-batch_size = 2
+batch_size = 16
 
 # reshape input to be [samples, time steps, features]
 X_train_sc = np.reshape(X_train_sc, (mX, time_steps, nX))
@@ -464,18 +475,6 @@ y_train = np.reshape(y_train, (mY, 1))
 y_test = np.reshape(y_test, (-1, 1))
 
 # Build LSTM
-'''
-model = Sequential()
-model.add(LSTM(input_shape=(time_steps, nX), units=nX, activation='relu', return_sequences=True, stateful=True, batch_input_shape=(batch_size, time_steps, nX)))
-#model.add(LSTM(batch_size, return_sequences=True, stateful=True))
-model.add(LSTM(batch_size, stateful=True))
-#model.add(Dropout(0.2))
-#model.add(Dense(10, activation='relu'))
-model.add(Dense(1)) # no matter what, do not change this.  This is since y is a vector. 
-model.add(Activation('linear'))
-model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mse', 'mae', 'mape'])
-'''
-
 # Check if model exists
 try:
     json_file = open('model_{}.json'.format(TICKER), 'r')
@@ -490,7 +489,7 @@ except FileNotFoundError:
     model.add(Dropout(0.2))
     model.add(Dense(1)) # no matter what, do not change this.  This is since y is a vector. 
     model.add(Activation('relu'))
-    model.compile(loss='mae', optimizer='adam', metrics=[rmse])
+    model.compile(loss='mse', optimizer='adam', metrics=[rmse])
     model.summary()
     
     model.fit(X_train_sc, y_train, epochs=2048, batch_size=batch_size, verbose=2)
@@ -500,21 +499,31 @@ except FileNotFoundError:
         json_file.write(model_json)
     model.save_weights("model_{}.h5".format(TICKER))
     
-# Generate a timeseries from 2018-04-04 to 2018-04-04 + 30 days = 2018-05-04
-# Use data from Yahoo finance to predict these stocks 
-y_hat = model.predict(X_test_sc, batch_size=batch_size)
+y_test_orig = pd.DataFrame(y_test, columns=['Close_t+30'])#, index=test.index)
+y_test_orig = scaler_y.inverse_transform(y_test_orig)
+y_test_orig = pd.DataFrame(y_test_orig, columns=['Close_t+30'], index=test.index)
+#y_test_orig = y_test_orig ** 2
 
-plt.figure(figsize=(15,3))
+y_hat = model.predict(X_test_sc, batch_size=batch_size) #** 2
+y_hat = scaler_y.inverse_transform(y_hat)
+y_hat = pd.DataFrame(y_hat.flatten(), index=test.index)
+
+# https://towardsdatascience.com/using-lstms-to-forecast-time-series-4ab688386b1f
+# Objective: green line to be 100% on the blue one after shift.
+
+fig = plt.figure(figsize=(15,3))
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
-plot_test, = plt.plot(y_test ** 2, label='Test data')
-plot_predicted, = plt.plot(y_hat ** 2, label='Predicted data')
-plt.legend([plot_test, plot_predicted])
+plot_actual, = plt.plot(pd.DataFrame(test['Close'].values, index=y_test_orig.index+-30), linewidth=2.75, label='True test data')
+plot_test, = plt.plot(y_test_orig, label='True lookforward-30 test data') 
+plot_predicted, = plt.plot(y_hat, label='Predicted lookforward-30 data') 
+plt.legend([plot_actual, plot_test, plot_predicted])
 plt.grid(True)
-plt.xlim([0,y_hat.shape[0]])
-plt.ylabel('Price in USD')
+#plt.xlim([0,dataset.shape[0]])
+plt.ylabel('Price in INR')
 plt.xlabel('Date')
 plt.title('Predicted Closing Price')
+fig.tight_layout()
 plt.savefig('prediction_{}.pdf'.format(TICKER), format='pdf')
 plt.show()
 
@@ -525,78 +534,16 @@ def generate_return(closing_0, closing_30):
     
 ############################################################################################
 
-generated_return = generate_return(y_hat[0][0], y_hat[-1][0])
+# Now compute the return for the next 30 days
+
+y_last_date = y_hat.iloc[-1,:][0] # this is 5/16/2018 since we are predicting Close t + 30
+y_first_date = test['Close'].iloc[-1] # this is 4/4/2018
+
+generated_return = generate_return(y_first_date, y_last_date)
 
 # Conclude
 file = open('return_{}.txt'.format(TICKER),'w') 
-print('For ticker {0}, the predicted return is {1:3f}%'.format(TICKER, generated_return))
-file.write('For ticker {0}, the predicted return is {1:3f}%'.format(TICKER, generated_return))
+print('For ticker {0}, the forecasted return is {1:3f}%'.format(TICKER, generated_return))
+file.write('For ticker {0}, the forecasted return is {1:3f}%'.format(TICKER, generated_return))
+
 file.close()
-
-############################################################################################    
-'''
-from sklearn.model_selection import GridSearchCV
-from keras.wrappers.scikit_learn import KerasRegressor
-from sklearn.preprocessing import StandardScaler
-
-ss = StandardScaler()
-
-X_train_sc = ss.fit_transform(X_train)
-X_test_sc = ss.transform(X_test)
-
-# create model
-def create_mlp(intermediate_dim, n_hidden):
-    mlp = Sequential()
-    mlp.add(Dense(units=intermediate_dim, input_dim=nX, activation='relu'))
-    for k in np.arange(n_hidden):
-        mlp.add(Dense(intermediate_dim, use_bias=False))
-
-    mlp.add(Dense(units=nY, input_dim=intermediate_dim, activation='relu', use_bias=True))
-
-    mlp.compile(loss='mse', optimizer='rmsprop', metrics=['accuracy'])
-    return mlp
-
-model = KerasRegressor(build_fn=create_mlp, verbose=1, epochs=32, batch_size=32)
-
-# The hyperparameters
-dims = [100,1000]#,5000,10000]
-n_hiddens = [50, 500] #,500,1000]
-
-hyperparameters = dict(intermediate_dim=dims, n_hidden=n_hiddens)
-
-grid = GridSearchCV(estimator=model, param_grid=hyperparameters, n_jobs=1, cv=3)
-grid_result = grid.fit(X_train_sc, Y_train)
-
-# This is the best model
-best_model_mlp = grid_result.best_params_
-
-mlp = Sequential()
-mlp.add(Dense(units=grid_result.best_params_['intermediate_dim'], input_dim=nX, activation='relu'))
-
-for k in np.arange(grid_result.best_params_['n_hidden']):
-    mlp.add(Dense(grid_result.best_params_['intermediate_dim'], use_bias=False)) # no sigmoid here
-
-mlp.add(Dense(units=nY, input_dim=grid_result.best_params_['intermediate_dim'], activation='relu', use_bias=True))
-
-# Compile model with accuracy metric
-mlp.compile(loss='mse', optimizer='rmsprop', metrics=['accuracy'])
-mlp.fit(X_train_sc, Y_train, epochs=32, batch_size=32)
-
-# Create mlp object with params from grid_result then generate these
-y_hat = mlp.predict(X_test_sc)
-
-# Now score the model for accuracy
-from sklearn.metrics import r2_score
-from sklearn.metrics import accuracy_score
-
-Y_test = Y_test.values
-y1_r2 = r2_score(Y_test[:,0], y_hat[:,0])
-y2_r2 = r2_score(Y_test[:,1], y_hat[:,1])
-
-y1_acc = accuracy_score(Y_test[:,0], y_hat[:,0])
-y2_acc = accuracy_score(Y_test[:,1], y_hat[:,1])
-
-print(best_model_mlp)
-print('R-sq for y1 dataset is: {0:.3f} and for y2 dataset is {1:.3f}.'.format(y1_r2, y2_r2))
-print('Accuracy for y1 dataset is: {0:.4f} and for for y2 dataset is {1:.4f}'.format(y1_acc, y2_acc))
-'''
