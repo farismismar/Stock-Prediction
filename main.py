@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 
 import os
 import sys
-#os.chdir('C:/Users/ATOC Resource 3/Desktop/Jio/Hackathon')
+
 os.chdir('/Users/farismismar/Dropbox/Stock Trading Using ML')
 
 # Check if tensorflow is used
