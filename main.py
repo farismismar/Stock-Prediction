@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 import os
 import sys
 
-os.chdir('/Users/farismismar/Dropbox/Stock Trading Using ML')
+#os.chdir('/Users/farismismar/Dropbox/Stock Trading Using ML')
 
 # Check if tensorflow is used
 if (keras.backend.backend() != 'tensorflow' and keras.backend.image_data_format() != 'channels_last' and keras.backend.image_dim_ordering() != 'tf'):
@@ -412,8 +412,6 @@ test_size = m - train_size
 
 # Plot the data closing
 fig = plt.figure(figsize=(15,3))
-plt.rc('text', usetex=True)
-plt.rc('font', family='serif')
 plt.plot(dataset['Close'].values)
 plt.title('Closing Price')
 plt.grid()
@@ -512,8 +510,6 @@ y_hat = pd.DataFrame(y_hat.flatten(), index=test.index)
 # Objective: green line to be 100% on the blue one after shift.
 
 fig = plt.figure(figsize=(15,3))
-plt.rc('text', usetex=True)
-plt.rc('font', family='serif')
 plot_actual, = plt.plot(pd.DataFrame(test['Close'].values, index=y_test_orig.index+-30), linewidth=2.75, label='True test data')
 plot_test, = plt.plot(y_test_orig, label='True lookforward-30 test data') 
 plot_predicted, = plt.plot(y_hat, label='Predicted lookforward-30 data') 
