@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sun Feb  6 11:51:07 2022
+Created on Wed Sep  7 20:48:10 2022
 
 @author: farismismar
 """
 import os
-import sys
 
 from tensorflow import keras
-from tensorflow.keras import layers, optimizers
+from tensorflow.keras import layers
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.compat.v1 import set_random_seed
 
@@ -20,8 +19,6 @@ import tensorflow as tf
 
 import pandas as pd
 import numpy as np
-
-from sklearn.preprocessing import MinMaxScaler
 
 import matplotlib.pyplot as plt
 
@@ -34,13 +31,13 @@ import tensorflow as tf
 #print(tf.config.list_physical_devices('GPU'))
 
 # The GPU ID to use, usually either "0" or "1" based on previous line.
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"   # My NVIDIA GeForce RTX 3050 Ti GPU output from line 34
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"   # My NVIDIA GeForce RTX 3050 Ti GPU output from line 31
 
 import pdb
 
 class StockPricePredictor:
-    ver = '1.1'
-    rel_date = '2022-09-03'
+    ver = '0.3'
+    rel_date = '2022-09-07'
     
     # OK
     def __init__(self, ticker, seed):
@@ -352,16 +349,21 @@ class StockPricePredictor:
         model = keras.Sequential()
         model.add(layers.LSTM(input_shape=(mX, nX), recurrent_dropout=0.8,
                               units=width, return_sequences=False, 
-                              activation="tanh",
+                              activation="relu",
                               recurrent_activation="sigmoid"))
 
         for hidden in np.arange(depth):
             model.add(layers.Dense(width, activation='relu'))
         
         model.add(layers.Dropout(0.2))
-        # model.add(layers.LSTM(units=width, recurrent_dropout=0.5, return_sequences=False, 
-        #                       activation="tanh", recurrent_activation="sigmoid"))
         model.add(layers.Dense(1, activation='linear'))
+        
+        
+        # This is a good model
+        # model.add(layers.LSTM(input_shape=(mX, nX), units=width, activation='relu'))
+        # model.add(layers.Dropout(0.2))
+        # model.add(layers.Dense(1)) # no matter what, do not change this.  This is since y is a vector. 
+        
         model.compile(loss=self._rmse, optimizer='adam', metrics=['mse'])
         
         # Reporting the number of parameters
@@ -747,8 +749,8 @@ target_variable = 'Close'
 train_size = 0.6
 lookahead = 30
 ticker = 'INDUSINDBK.NS'
-epoch_count = 192
-batch_size = 32
+epoch_count = 2048
+batch_size = 2048
 lookbacks = 14
 
 stock_predictor = StockPricePredictor(ticker=ticker, seed=0)
