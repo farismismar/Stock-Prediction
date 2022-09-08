@@ -21,3 +21,10 @@ William Oscillator
 ```
 
 LSTM is implemented using Keras with TensorFlow in the backend. 
+
+# Version History
+| Version        | Date | Changes |
+| ------------- |:--------| :-----------|
+| 0.1 | May 31, 2018 | Initial version |
+| 0.2 | May 16, 2020 | Further enhancements |
+| 0.3 | Sep 7, 2022 | Updated pandas deprecated functions and improved algorithmic implementation |
