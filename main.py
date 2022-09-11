@@ -22,6 +22,12 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
+import datetime
+from io import StringIO
+import requests
+
+import re
+
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 if os.name == 'nt':
@@ -36,8 +42,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"   # My NVIDIA GeForce RTX 3050 Ti GPU o
 import pdb
 
 class StockPricePredictor:
-    ver = '0.3'
-    rel_date = '2022-09-07'
+    ver = '0.4'
+    rel_date = '2022-09-11'
     
     # OK
     def __init__(self, ticker, seed):
@@ -62,9 +68,64 @@ class StockPricePredictor:
     
     # OK
     def load_data(self):
-        # Import the datafile to memory first
+        # Fetch the data online
+                
         TICKER = self.ticker
-        df = pd.read_csv('./Dataset/{}.csv'.format(TICKER))
+        start_date = 'March 1, 2000'
+        
+        start_date = datetime.datetime.strptime(start_date, '%B %d, %Y')
+        end_date = datetime.datetime.today() - datetime.timedelta(days=1) # yesterday's date
+        
+        
+        # Now fetch the stock price
+        start_unix = start_date.strftime('%s')
+        end_unix = end_date.strftime('%s')
+        
+        fetch_url = f'https://query1.finance.yahoo.com/v7/finance/download/{TICKER}?period1={start_unix}&period2={end_unix}&interval=1d&events=history&includeAdjustedClose=true'
+        
+        s = requests.get(fetch_url).text
+        df_ticker = pd.read_csv(StringIO(s))
+        
+        df_ticker['Date'] = pd.to_datetime(df_ticker['Date'], format='%Y-%m-%d').dt.strftime('%Y-%m-%d')
+        del s
+        
+        # Now fetch the treasury yield
+        fetch_url = 'https://www.treasury.gov/resource-center/data-chart-center/interest-rates/pages/TextView.aspx?data=yieldAll'
+        
+        response = requests.get(fetch_url)
+        data = response.text
+        
+        date_pattern = re.compile('[0-9]{2}/[0-9]{2}/[0-9]{2}', re.MULTILINE)
+        
+        dates = pd.DataFrame(data={'Dates': re.findall(date_pattern, data)})
+        dates['Dates'] = pd.to_datetime(dates['Dates'], format='%m/%d/%y').dt.strftime('%Y-%m-%d')
+        dates = dates.iloc[1:,:].reset_index(drop=True)
+        
+        values_pattern = re.compile('(>[0-9]{,3}\.[0-9]{2}<|N/A)')
+        numbers = pd.DataFrame(data={'Values': re.findall(values_pattern, data)})
+        
+        headers_pattern = re.compile('>([A-Za-z\s0-9]+)</th>')
+        headers = re.findall(headers_pattern, data)
+        del data
+        
+        numbers['Values'] = numbers['Values'].apply(lambda x: re.sub('>|<', '', x))
+        numbers['Values'] = pd.to_numeric(numbers['Values'], errors='coerce')
+          
+        numbers = numbers.values
+        numbers = pd.DataFrame(np.reshape(numbers, (-1, len(headers) - 1)))
+        
+        assert(numbers.shape[0] == dates.shape[0])
+        
+        df_treasury = pd.concat([dates, numbers], axis=1, ignore_index=True)
+        df_treasury.columns = headers
+        
+        # TODO: Now fetch the inflation rates, unemployment rates, DOW, NASDAQ, and S&P 500
+        
+        # Finally, merge all tables
+        df = pd.merge(df_ticker, df_treasury, how='inner', on='Date')
+        df = df.set_index('Date')
+        
+        df.to_csv(f'{TICKER}.csv', sep=',', index=True)
         
         # Date as a datetime object.
         df['Date'] = pd.to_datetime(df['Date'])
@@ -85,7 +146,7 @@ class StockPricePredictor:
         ax.xaxis.set_major_locator(plt.MaxNLocator(15)) # Too many dates.
         plt.title('Closing Price')
         plt.xlabel('Date')
-        plt.ylabel('Price [INR]')
+        plt.ylabel('Price [USD]')
         plt.grid()
         plt.tight_layout()
         plt.savefig('price_{}.pdf'.format(ticker), format='pdf', dpi=fig.dpi)
@@ -136,7 +197,7 @@ class StockPricePredictor:
         plt.grid(True)
         plt.title('Closing Price')
         plt.xlabel('Date')
-        plt.ylabel('Price [INR]')
+        plt.ylabel('Price [USD]')
         fig.tight_layout()
         plt.savefig('prediction_{}.pdf'.format(ticker), format='pdf')
         #plt.show()
