@@ -132,7 +132,7 @@ class StockPricePredictor:
         df = pd.merge(df_ticker, df_treasury, how='inner', on='Date')
         df = df.set_index('Date')
         
-        df.to_csv(f'{TICKER}.csv', sep=',', index=True)
+        df.to_csv(f'./Dataset/{TICKER}.csv', sep=',', index=True)
         
         # Date as a datetime object.
         df['Date'] = pd.to_datetime(df['Date'])
@@ -255,7 +255,7 @@ class StockPricePredictor:
         
         ############################################################################################
         # Save the file
-        df_eng.to_csv(path_or_buf='./Dataset/{}_complete.csv'.format(ticker), index=False)
+        df_eng.to_csv(path_or_buf='./Output/{}_complete.csv'.format(ticker), index=False)
 
 
     # OK
