@@ -37,7 +37,7 @@ import tensorflow as tf
 #print(tf.config.list_physical_devices('GPU'))
 
 # The GPU ID to use, usually either "0" or "1" based on previous line.
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"   # My NVIDIA GeForce RTX 3050 Ti GPU output from line 31
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"   # My NVIDIA GeForce RTX 3050 Ti GPU output from line 37
 
 import pdb
 
