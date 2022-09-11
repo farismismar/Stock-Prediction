@@ -29,3 +29,6 @@ LSTM is implemented using Keras with TensorFlow in the backend.
 | 0.2 | May 16, 2020 | Further enhancements |
 | 0.3 | Sep 7, 2022 | Updated pandas deprecated functions and improved algorithmic implementation |
 | 0.4 | Sep 11, 2022 | Code for Yahoo! API for stock fetching (it is now deprecated) |
+
+## Disclaimer: 
+I assume no liability for any unfavorable financial outcome (or any subsequent outcome) resulting from the use of this code.
