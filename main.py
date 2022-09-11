@@ -84,7 +84,14 @@ class StockPricePredictor:
         fetch_url = f'https://query1.finance.yahoo.com/v7/finance/download/{TICKER}?period1={start_unix}&period2={end_unix}&interval=1d&events=history&includeAdjustedClose=true'
         
         s = requests.get(fetch_url).text
+        
+        if (s == 'Forbidden'):
+            print(f'ERROR: {s} accessing {fetch_url}')
+            return pd.DataFrame()
+            
         df_ticker = pd.read_csv(StringIO(s))
+        
+        pdb.set_trace()
         
         df_ticker['Date'] = pd.to_datetime(df_ticker['Date'], format='%Y-%m-%d').dt.strftime('%Y-%m-%d')
         del s
@@ -214,6 +221,10 @@ class StockPricePredictor:
                        epoch_count, batch_size):
         
         df = self.load_data()
+        
+        if df.shape[0] == 0:
+            return None
+        
         df_eng = self.feature_engineering(df)
         
         self.plot_data(df, ticker)
@@ -809,7 +820,7 @@ class StockPricePredictor:
 target_variable = 'Close'
 train_size = 0.6
 lookahead = 30
-ticker = 'INDUSINDBK.NS'
+ticker = 'BTC-USD'
 epoch_count = 2048
 batch_size = 2048
 lookbacks = 14
